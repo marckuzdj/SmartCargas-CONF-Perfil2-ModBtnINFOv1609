@@ -3837,12 +3837,16 @@ function fecharModalFaltantes() {
 
 	
 async function enviarOcorrenciaFaltanteFluxo() {
+    const btn = document.getElementById("btnEnviarOcorrenciaFaltante");
+    
+    // 🛑 TRATATIVA DE DUPLO CLIQUE: Se o botão já estiver desativado, aborta imediatamente
+    if (btn && btn.disabled) return;
+
     const motivo = document.getElementById("oc_motivo_faltante").value;
     const descText = document.getElementById("oc_descricao_faltante").value.trim();
     // 1. ADICIONADO APENAS A CAPTURA DO NOVO CAMPO DO TOKEN
     const tokenInput = document.getElementById("oc_token_faltante");
     const tokenVal = tokenInput ? tokenInput.value.trim() : "";
-    const btn = document.getElementById("btnEnviarOcorrenciaFaltante");
     const romaneioVal = document.getElementById("romaneio").value;
     
     // 🔍 INJEÇÃO CIRÚRGICA: Mapeia se o motivo atual exige validação rígida e rotina de devolução
@@ -3874,13 +3878,24 @@ async function enviarOcorrenciaFaltanteFluxo() {
     // Monta o encerramento no formato padrão estrutural esperado pelo servidor
     let finalDesc = descText + " - [Pedidos Afetados: " + listaCodigos.join(", ") + "]";
     
-    btn.disabled = true;
-    btn.innerText = "Gravando...";
+    // 🔄 ENGENHARIA DO SPINNER VISUAL (CSS injetado caso não exista)
+    if (!document.getElementById("oc-spinner-style")) {
+        const style = document.createElement("style");
+        style.id = "oc-spinner-style";
+        style.innerHTML = "@keyframes ocSpinner { to { transform: rotate(360deg); } }";
+        document.head.appendChild(style);
+    }
+    const spinnerHtml = `<span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff; border-radius: 50%; border-top-color: transparent; animation: ocSpinner 0.6s linear infinite; margin-right: 8px; vertical-align: middle;"></span>`;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = spinnerHtml + "Gravando...";
+    }
 
     // 3. INJEÇÃO CIRÚRGICA: CONSULTA CROSSED DO TOKEN2 NO SERVIDOR ANTES DO ENVIO
     let tokenDestinoEnvio = "";
     if (isMotivoEspecial) {
-        btn.innerText = "Validando Token...";
+        if (btn) btn.innerHTML = spinnerHtml + "Validando Token...";
         try {
             const urlValidacao = `${urlSheets}?action=consultarSegurancaOcorrencia&romaneio=${encodeURIComponent(romaneioVal)}`;
             const resValidacao = await fetch(urlValidacao);
@@ -3890,8 +3905,7 @@ async function enviarOcorrenciaFaltanteFluxo() {
                 const tokenServidor = (dataValidacao.token2 || "").toString().trim();
                 if (tokenServidor === "" || tokenVal !== tokenServidor) {
                     alert("❌ Erro: O Token de Devolução informado não confere com o gerado pelo Operador Logístico.");
-                    btn.disabled = false;
-                    btn.innerText = "Enviar";
+                    if (btn) { btn.disabled = false; btn.innerText = "Enviar"; }
                     return; // Interrompe o envio se o token estiver errado
                 }
                 // Adiciona o token validado e o sufixo no texto de descrição
@@ -3899,14 +3913,12 @@ async function enviarOcorrenciaFaltanteFluxo() {
                 finalDesc += " - [Token Dev: " + tokenVal + "]";
             } else {
                 alert("⚠️ Erro na validação: " + (dataValidacao ? dataValidacao.error : "Sem resposta do servidor."));
-                btn.disabled = false;
-                btn.innerText = "Enviar";
+                if (btn) { btn.disabled = false; btn.innerText = "Enviar"; }
                 return;
             }
         } catch (errVal) {
             console.error("Erro na checagem de tokens:", errVal);
-            btn.disabled = false;
-            btn.innerText = "Enviar";
+            if (btn) { btn.disabled = false; btn.innerText = "Enviar"; }
             return alert("🌐 Falha de conexão ao validar o token de segurança no servidor.");
         }
     }
@@ -3915,7 +3927,7 @@ async function enviarOcorrenciaFaltanteFluxo() {
     let fotoBase64 = "";
     let fotoNome = "";
     if (fotoInput && fotoInput.files && fotoInput.files.length > 0) {
-        btn.innerText = "Convertendo imagem...";
+        if (btn) btn.innerHTML = spinnerHtml + "Convertendo imagem...";
         const arquivo = fotoInput.files[0];
         fotoNome = arquivo.name;
         fotoBase64 = await new Promise((resolve, reject) => {
@@ -3926,7 +3938,7 @@ async function enviarOcorrenciaFaltanteFluxo() {
         });
     }
 
-    btn.innerText = "Enviar...";
+    if (btn) btn.innerHTML = spinnerHtml + "Enviando a Ocorrencia... Aguarde!";
     
     // 4. MODO INFORMAR INJETADO CASO NÃO SEJA O MOTIVO ESPECIAL DE DEVOLUÇÃO
     const payload = {
@@ -3981,10 +3993,13 @@ async function enviarOcorrenciaFaltanteFluxo() {
     } catch(err) {
         alert("❌ Falha crítica: " + err.message);
     } finally {
-        btn.disabled = false; 
-        btn.innerText = "Enviar";
+        if (btn) {
+            btn.disabled = false; 
+            btn.innerText = "Enviar";
+        }
     }
 }
+
 
 
 
