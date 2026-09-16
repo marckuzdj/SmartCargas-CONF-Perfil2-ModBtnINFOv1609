@@ -542,12 +542,13 @@
                 <select id="oc_motivo_faltante" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; background: white; box-sizing: border-box;">
                     <option value="">Selecione o motivo...</option>
                    <!-- <option value="Mercadoria Avariada">Mercadoria Avariada</option>  -->
-                    <option value="Troca de Turno">Passagem de bastão entre equipes de conferência.</option>
+                    <option value="CEPs fora da Malha" style="color: #dc3545; font-weight: bold;">⚠️ Pedidos não atendidos pela Transportadora.</option>
+					<option value="Divergencia de quantidade de Pedidos ou Volumes" style="color: #dc3545; font-weight: bold;">⚠️ Divergência de quantidade de Pedidos ou Volumes.</option>
+					<option value="Troca de Turno">Passagem de bastão entre equipes de conferência.</option>
                     <option value="Prioridade de Carga">Conferente remanejado para um carregamento urgente.</option>
                     <option value="Queda de Sistema">Indisponibilidade da rede para bipagem.</option>
                     <option value="Código de Barras Ilegível">Código de Barras Ilegível.</option>
 					<!-- <option value="CEPs fora da Malha">Pedidos não atendidos pela Transportadora.</option> -->
-					<option value="CEPs fora da Malha" style="color: #dc3545; font-weight: bold;">⚠️ Pedidos não atendidos pela Transportadora.</option>
                      <option value="Falta de Tempo Hábil">Término do turno ou fechamento do armazém.</option>
                      <option value="Avaria no Setor">Problemas na estrutura da doca ou maquinário.</option>
                      <option value="Divergência Crítica">Processo parado para análise após erro grave.</option>
@@ -3834,6 +3835,7 @@ function fecharModalFaltantes() {
     if (modal) { modal.classList.add("hidden"); modal.style.display = "none"; }
 }
 
+	
 async function enviarOcorrenciaFaltanteFluxo() {
     const motivo = document.getElementById("oc_motivo_faltante").value;
     const descText = document.getElementById("oc_descricao_faltante").value.trim();
@@ -3843,12 +3845,18 @@ async function enviarOcorrenciaFaltanteFluxo() {
     const btn = document.getElementById("btnEnviarOcorrenciaFaltante");
     const romaneioVal = document.getElementById("romaneio").value;
     
+    // 🔍 INJEÇÃO CIRÚRGICA: Mapeia se o motivo atual exige validação rígida e rotina de devolução
+    const isMotivoEspecial = (
+        motivo === "CEPs fora da Malha" || 
+        motivo === "Divergencia de quantidade de Pedidos ou Volumes"
+    );
+    
     // Validações obrigatórias rígidas do fluxo de Devolução
     if (!motivo) return alert("⚠️ Selecione o motivo da retenção!");
     if (!descText) return alert("⚠️ Digite uma descrição detalhada!");
     
-    // 2. INJEÇÃO CIRÚRGICA: VALIDAÇÃO SE FOR O MOTIVO ESPECIAL
-    if (motivo === "CEPs fora da Malha") {
+    // 2. INJEÇÃO CIRÚRGICA: VALIDAÇÃO SE FOR UM DOS MOTIVOS ESPECIAIS
+    if (isMotivoEspecial) {
         if (tokenVal.length !== 5 || isNaN(tokenVal)) {
             return alert("⚠️ Para este motivo, informe o TOKEN DE DEVOLUÇÃO numérico de 5 dígitos enviado pelo Operador!");
         }
@@ -3871,7 +3879,7 @@ async function enviarOcorrenciaFaltanteFluxo() {
 
     // 3. INJEÇÃO CIRÚRGICA: CONSULTA CROSSED DO TOKEN2 NO SERVIDOR ANTES DO ENVIO
     let tokenDestinoEnvio = "";
-    if (motivo === "CEPs fora da Malha") {
+    if (isMotivoEspecial) {
         btn.innerText = "Validando Token...";
         try {
             const urlValidacao = `${urlSheets}?action=consultarSegurancaOcorrencia&romaneio=${encodeURIComponent(romaneioVal)}`;
@@ -3924,13 +3932,13 @@ async function enviarOcorrenciaFaltanteFluxo() {
     const payload = {
         action: "salvarFluxoOcorrenciaCONF",
         romaneio: romaneioVal,
-        oc_motivo: motivo === "CEPs fora da Malha" ? motivo : "Informe Administrativo",
+        oc_motivo: isMotivoEspecial ? motivo : "Informe Administrativo",
         oc_descricao: finalDesc,
         oc_token: tokenDestinoEnvio,
         oc_foto_data: fotoBase64, 
         oc_foto_name: fotoNome, 
         oc_itens_remover: JSON.stringify(listaCodigos),
-        tipoFluxo: motivo === "CEPs fora da Malha" ? "Devolver" : "Informar"
+        tipoFluxo: isMotivoEspecial ? "Devolver" : "Informar"
     };
 
     const formParams = new URLSearchParams();
@@ -3960,7 +3968,7 @@ async function enviarOcorrenciaFaltanteFluxo() {
             fecharModalFaltantes();
             
             // Alerta condicional baseado no motivo selecionado
-            if (motivo === "CEPs fora da Malha") {
+            if (isMotivoEspecial) {
                 alert("Romaneio retido e token de liberação atual foi anulado. Para finalizar, aguarde a tratativa do Operador Logístico: Gerar 'Token de Finalização'");
             } else {
                 alert("Conferencia parcial registrada com sucesso!");
@@ -3977,6 +3985,7 @@ async function enviarOcorrenciaFaltanteFluxo() {
         btn.innerText = "Enviar";
     }
 }
+
 
 
 
@@ -4998,25 +5007,28 @@ document.addEventListener("DOMContentLoaded", function() {
     
     if (comboFaltas && containerToken) {
         comboFaltas.addEventListener("change", function() {
-            if (this.value === "CEPs fora da Malha") {
+            // 🔍 INJEÇÃO CIRÚRGICA: Agora verifica se é CEPs fora da Malha OU Divergência
+            if (this.value === "CEPs fora da Malha" || this.value === "Divergencia de quantidade de Pedidos ou Volumes") {
                 // 1. Mostra o campo do Token na tela
                 containerToken.style.display = "block";
                 
                 // 2. Injeta visualmente os marcadores de campos obrigatórios (*)
                 if (labelToken) labelToken.innerHTML = 'TOKEN DEVOLUÇÃO (*Solicite ao Operador*): <span style="color: #dc3545; font-weight: bold;">*</span>';
-                if (labelFoto) labelFoto.innerHTML = 'Foto da Evidência/Avaria: <span style="color: #dc3545; font-weight: bold;">(* Obrigatório)</span>';
+                if (labelFoto) labelFoto.innerHTML = 'Foto da Evidência: <span style="color: #dc3545; font-weight: bold;">(* Obrigatório)</span>';
             } else {
                 // Se escolher qualquer outro motivo, esconde e limpa o campo
                 containerToken.style.display = "none";
-                document.getElementById("oc_token_faltante").value = "";
+                const inputToken = document.getElementById("oc_token_faltante");
+                if (inputToken) inputToken.value = "";
                 
                 // Restaura os textos originais e remove a obrigatoriedade da foto
                 if (labelToken) labelToken.innerHTML = 'TOKEN DEVOLUÇÃO (*Solicite ao Operador*):';
-                if (labelFoto) labelFoto.innerHTML = 'Foto da Evidência/Avaria: <span style="color: #6c757d; font-weight: normal;">(Opcional)</span>';
+                if (labelFoto) labelFoto.innerHTML = 'Foto da Evidência: <span style="color: #6c757d; font-weight: normal;">(Opcional)</span>';
             }
         });
     }
 });
+
 	
         
 </script>
